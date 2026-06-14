@@ -1,0 +1,4 @@
+# 런타임 의존성 — openpyxl 하나뿐(보고서 생성용; 순수 파이썬, MIT).
+# 코어(엔진/카드/큐/라이프사이클)는 표준 라이브러리만 사용. pandas/numpy/pydantic/dbt/GE/jsonschema 불요.
+# 폐쇄망: vendor/README.md 절차로 소스 동봉 후 `PYTHONPATH=vendor python main.py`.
+openpyxl>=3.1

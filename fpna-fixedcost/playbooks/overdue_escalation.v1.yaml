@@ -1,0 +1,10 @@
+name: overdue_escalation
+version: 1
+status: active
+trigger_spec: { source: [internal], description: "due 경과 자료요청 독촉" }
+allowed_emits: { task: [send_reminder, post_teams, propose_playbook] }
+gates: {}
+procedure: |
+  1) request_register에서 status='sent' & due 경과 스캔.
+  2) 동일 담당자 다건 묶어 send_reminder(메일, "첨부로 회신" 문구 고정) + post_teams(알림).
+  3) 재독촉 간격·횟수 상한(스팸 방지). 발송은 승인 게이트(§6.8).

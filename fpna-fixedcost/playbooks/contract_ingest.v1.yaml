@@ -1,0 +1,10 @@
+name: contract_ingest
+version: 1
+status: active
+trigger_spec: { source: [sharepoint], path_contains: "/contracts/", description: "계약 PDF 인입→마스터·개정 감지" }
+allowed_emits: { decision: [contract_field], task: [send_request, write_fcst, propose_playbook] }
+gates: { decision_confidence_min: 0.7, provenance_required: true }
+procedure: |
+  1) 계약 추출(반환 스키마 강제) → 거래처 ER로 canonical_vendor_id 해소(§7.9).
+  2) detect_contract_change: 기존 매칭=개정(supersede·재스케줄·rebuild §7.8), 아니면 신규.
+  3) 누락 필드→send_request. 상각/리스 스케줄 재도출(§7.1).
