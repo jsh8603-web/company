@@ -11,6 +11,11 @@ claude-harness-portable/
     skill.md  protocol.md    # 진입점 + 런타임 SSOT
     lib/*.sh                 # 상태머신·로그·watchdog·teammate-spawn (SSOT=teammate-spawn.sh build())
     templates/               # role/disclaimer 템플릿
+  skills/debate/             # in-process teammate 토론 (트리거: debate / 토론 / 반론)
+    skill.md  protocol.md    # Steelman+Attack + Clean Room Judge
+    challenger-constitution.md  judge-protocol.md
+    lib/debate-bootstrap.sh  # transport = harness-wf/lib 재사용 (형제 경로 자동참조)
+    templates/               # challenger/judge/disclaimer 템플릿
   hooks/ctx-precompact/      # 사전압축 훅 + 자가 재개
     ctx-precompact.js        # PostToolUse — cap 임계 경고 + 자가 압축 지시
     ctx-precompact-pre.js    # PreCompact — 압축 후 stale-token cooldown marker
@@ -108,3 +113,19 @@ bash ~/.claude/hooks/ctx-precompact/self-wake.sh status
   psmux 가 필요한 건 **메인 세션 pane 제어**(self-wake / self-compact)뿐이다.
 - Windows psmux 는 실행파일이 PATH 에 없고 winget 절대경로이며 `TMUX` env 를 설정하므로, transport 는
   `mux-lib.sh` 가 이 둘을 모두 처리한다. 경로가 비표준이면 `PSMUX_BIN=/path/to/psmux.exe` 로 지정.
+
+---
+
+## 4. debate — in-process teammate 토론
+
+멀티라운드 토론(Steelman+Attack 강제, Constitutional 평가 그리드, Clean Room Judge, 수렴 자동 감지).
+Challenger/Judge = **opus**, watchdog = haiku. transport 는 harness-wf 와 **공유**(`harness-wf/lib` 재사용).
+
+**트리거**: `debate` / `토론` / `반론` → 메인 Supervisor 가 `protocol.md` 를 읽고
+`lib/debate-bootstrap.sh .debate <context_spec_file>` 로 scaffold → `TeamCreate(team_name="debate")` →
+`Agent(Challenger, model=opus)` + `Agent(watchdog, model=haiku)` → 수렴 시 `Agent(Judge, model=opus)` on-demand.
+
+- **psmux 의존 아님**: teammate = Agent tool + SendMessage(in-process). harness 와 동일하게 메인 세션만
+  psmux 위에서 돈다.
+- **harness-wf 필수 동반 설치**: debate 의 로그/agent 등록은 `harness-wf/lib/h2-log.sh`·`h2-agents.sh` 를
+  재사용한다. `bootstrap` 이 형제 경로(`skills/harness-wf/lib`)를 자동 참조하므로 setup.sh 가 둘 다 설치하면 동작.
