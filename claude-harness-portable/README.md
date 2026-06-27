@@ -11,11 +11,13 @@ claude-harness-portable/
     skill.md  protocol.md    # 진입점 + 런타임 SSOT
     lib/*.sh                 # 상태머신·로그·watchdog·teammate-spawn (SSOT=teammate-spawn.sh build())
     templates/               # role/disclaimer 템플릿
-  hooks/ctx-precompact/      # 사전압축 훅
+  hooks/ctx-precompact/      # 사전압축 훅 + 자가 재개
     ctx-precompact.js        # PostToolUse — cap 임계 경고 + 자가 압축 지시
     ctx-precompact-pre.js    # PreCompact — 압축 후 stale-token cooldown marker
     ctx-longmode.sh          # cap 500k ↔ 750k 토글 (1회)
-    self-compact.sh          # 세션이 스스로 /compact 입력 (tmux/psmux 자동 감지)
+    mux-lib.sh               # 멀티플렉서(tmux/psmux) transport 추상화 (공용)
+    self-compact.sh          # 세션이 스스로 /compact 입력
+    self-wake.sh             # 압축 후 idle 자동 재개 (harness 밖 단독 세션용)
   setup.sh                   # 설치 + settings.json 훅 등록
   setup-merge-settings.js    # settings.json idempotent 병합
 ```
@@ -79,3 +81,30 @@ bash setup.sh
 ### subagent 안전
 PostToolUse 훅은 stdin 의 `agent_id`/`agent_type` 가 있으면(=subagent 발) 주입을 skip 한다.
 subagent 진행 중 /compact 는 결과를 고아화하므로 메인 세션에만 적용된다.
+
+---
+
+## 3. self-wake — 압축 후 idle 자동 재개
+
+harness wf **밖에서** 단독 세션에 ctx-precompact 훅만 쓸 때, auto-compact 직후 메인이 멈춰
+쉬는 걸 방지한다. (harness wf 안에서는 watchdog + 네이티브 idle_notification 이 이 역할을 하므로
+self-wake 는 불필요.)
+
+```bash
+bash ~/.claude/hooks/ctx-precompact/self-wake.sh start [interval_s=180] ["wake msg"]
+bash ~/.claude/hooks/ctx-precompact/self-wake.sh stop      # 작업 끝나면 반드시 stop
+bash ~/.claude/hooks/ctx-precompact/self-wake.sh status
+```
+
+- 멀티플렉서(tmux/psmux) pane 을 `interval` 마다 capture → **직전과 동일하면(=idle) wake 메시지 주입**.
+  화면이 변하는 동안(작업 중)엔 주입하지 않는다.
+- transport = `mux-lib.sh` (self-compact.sh 와 공유). **psmux 든 tmux 든 그 여부와 관계없이 동작**:
+  psmux 실행파일은 `PSMUX_BIN` env → PATH → winget glob 으로 해결, session 명은 `PSMUX_SESSION` →
+  `display-message` fallback. 실제 tmux 명령이 있으면 tmux 우선(psmux 가 설정하는 `TMUX` env 함정 회피).
+- **작업 완료 시 `stop` 필수** — 안 그러면 idle 을 "압축 후 멈춤"으로 보고 계속 깨운다(STOP sentinel).
+
+### 멀티플렉서 메모
+- harness 의 teammate(에이전트팀)는 Agent tool + SendMessage(in-process)라 psmux 의존이 **아니다**.
+  psmux 가 필요한 건 **메인 세션 pane 제어**(self-wake / self-compact)뿐이다.
+- Windows psmux 는 실행파일이 PATH 에 없고 winget 절대경로이며 `TMUX` env 를 설정하므로, transport 는
+  `mux-lib.sh` 가 이 둘을 모두 처리한다. 경로가 비표준이면 `PSMUX_BIN=/path/to/psmux.exe` 로 지정.
