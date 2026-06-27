@@ -92,11 +92,14 @@ case "$mode" in
     since0=${since_arg:-$(date +%s%3N)}; t0=$(date +%s)
     while :; do
       touch "$dir/.self-wake-ts" 2>/dev/null || true     # heartbeat → Supervisor dedup(.self-wake-ts 신선=alive)
-      if [ -f "$dir/.watchdog-stop" ]; then echo 'WATCHDOG_RESULT {"status":"stopped"}'; exit 0; fi
+      # 이벤트 종료(stopped/phase_complete/escalate/stuck) 시 .self-wake-ts 제거 → Supervisor 재스폰 dedup 통과(REARM 가능).
+      # 종료 직전까지의 신선 heartbeat 가 "다른 watchdog alive" 로 오판돼 재스폰을 막아 phase 후 watchdog 영구 idle 였음(2026-06-28 fix).
+      # cap 만 예외 — self-respawn 으로 같은 watchdog 가 즉시 재진입하므로 heartbeat 유지(dedup skip 정상).
+      if [ -f "$dir/.watchdog-stop" ]; then rm -f "$dir/.self-wake-ts" 2>/dev/null||true; echo 'WATCHDOG_RESULT {"status":"stopped"}'; exit 0; fi
       R=$(_scan_status "$stale" "$since0")
       case "$R" in
         *'"status":"alive"'*) : ;;
-        *) echo "WATCHDOG_RESULT $R"; exit 0 ;;
+        *) rm -f "$dir/.self-wake-ts" 2>/dev/null||true; echo "WATCHDOG_RESULT $R"; exit 0 ;;
       esac
       if [ $(( $(date +%s) - t0 )) -ge "$cap" ]; then echo "WATCHDOG_RESULT {\"status\":\"cap\",\"next_since\":$(date +%s%3N)}"; exit 0; fi
       sleep "$poll"

@@ -144,13 +144,14 @@ EOF
 === 역할: watchdog (haiku, liveness + phase-boundary 신호 — ctx/토큰 측정 절대 금지) ===
 ⛔ ctx/토큰 측정 절대 금지 — in-process teammate ctx 계측 구조적 불가(CTX-INVISIBLE). 너는 liveness + 이벤트 신호만.
 ⛔ **SendMessage 일절 금지** (너는 relay 가 아니다). 임무 = **단일 blocking 루프**로 폴하다가 (a) phase_complete (b) escalate|blocked (c) silent-death (d) stop-sentinel 중 하나 감지 시 **turn 종료** = task-notification 으로 Supervisor 기상. ⭐ (e) safety-cap 은 turn 종료가 아니라 **self-respawn**(아래 KICKOFF) — cap 은 Bash 한도 회피일 뿐 이벤트가 아니므로 Supervisor 를 깨우지 않는다(ZERO-MAIN, category-error fix). within-phase 정상 commit/verdict 흐름엔 안 깨어난다(Worker↔Verifier 자율 pull = Supervisor 미개입).
-⛔ **단일 인스턴스**: 이 루프가 .self-wake-ts 를 heartbeat 한다(self-respawn 동안에도 계속 갱신). Supervisor 는 .self-wake-ts 신선(<2min)이면 재스폰 skip → 중복 watchdog sprawl 차단(발견3 fix). cap 은 self-respawn(Supervisor 미경유). 워치독이 진짜 죽어 .self-wake-ts 가 stale 하면 **button dead-man's switch** 가 mtime staleness 감지 → Supervisor 를 깨워 1개 재스폰(유일한 외부 생존감시 = 워치독 독립 관찰자).
+⛔ **단일 인스턴스**: 이 루프가 .self-wake-ts 를 heartbeat 한다(self-respawn=cap 동안에도 계속 갱신). Supervisor 는 .self-wake-ts 신선(<2min)이면 재스폰 skip → 중복 watchdog sprawl 차단(발견3 fix). cap 은 self-respawn(Supervisor 미경유, heartbeat 유지=skip 정상). 반면 **이벤트 종료(phase_complete/escalate/stuck/stopped) 시 watch 가 .self-wake-ts 를 제거**(stale 화)하므로, idle 로 남은 너를 Supervisor 가 dedup 통과로 정확히 재무장(REARM)할 수 있다 — 과거엔 종료 직전 heartbeat 가 신선해 dedup 이 재스폰을 막아 phase 후 watchdog 가 영구 idle 였다(2026-06-28 fix). 워치독이 진짜 죽어(crash) .self-wake-ts 가 stale 하면 **button dead-man's switch** 가 mtime staleness 감지 → Supervisor 를 깨워 1개 재스폰(유일한 외부 생존감시 = 워치독 독립 관찰자).
 
 KICKOFF: ⛔ 너의 **첫 행동 = 반드시 Bash tool 로 아래 명령을 실제 invoke**. \`WATCHDOG_RESULT\` 를 상상해서 텍스트로 출력하지 마라 — 그건 감시가 아니다(heartbeat 미생성 = 감시 공백 = 작업 무효). 오직 **실제 Bash 실행**만이 \`.self-wake-ts\` heartbeat 를 만들고 blocking 루프를 돈다. 위 disclaimer 의 "JSON 1줄만 출력" 규칙은 너에겐 적용 안 됨(너의 산출=Bash 실행 자체). ⚠️ **Bash tool 호출 시 timeout 파라미터=590000(ms) 설정 필수** — watch 는 최대 540s(cap) blocking 이라 default(120s)면 cap 전에 강제 종료돼 heartbeat 1회만 남기고 죽는다(실측 2026-06-02). 지금 Bash tool 로 (timeout:590000) 실행:
   bash ~/.claude/skills/harness-wf/lib/h2-watchdog.sh watch $H2 60 540 360
 이 Bash 가 (blocking) 끝나 \`WATCHDOG_RESULT\` 1줄을 반환하면 status 로 분기:
   - \`status:"cap"\` → ⭐ **self-respawn**: 출력·정지 하지 말고 같은 watch 를 반환된 \`next_since\` 값으로 **즉시 재호출**(Bash tool, timeout:590000): \`bash ~/.claude/skills/harness-wf/lib/h2-watchdog.sh watch $H2 60 540 360 <next_since>\`. 이 cap→재호출 루프를 무한 반복한다(auto-compaction 이 turn 누적 흡수 — correctness 는 매 watch 의 execution-log ground-truth 재독에 의존, 대화 메모리 의존 금지). Supervisor 를 깨우지 않는다.
-  - \`status:"phase_complete"|"escalate"|"stuck"|"stopped"\` → 그 줄만 출력하고 정지(서사·다른 tool 금지) = 진짜 이벤트 task-notification.
+  - \`status:"phase_complete"|"escalate"|"stuck"|"stopped"\` → 그 줄만 출력하고 정지(서사·다른 tool 금지) = 진짜 이벤트 task-notification. 이때 watch 가 \`.self-wake-ts\` 를 제거하므로(stale) Supervisor 의 재스폰 dedup 이 통과 = 재무장 가능.
+⛔ **RE-ARM (phase 후 idle 영구화 차단 — 2026-06-28 fix)**: 위 이벤트(phase_complete/escalate/stuck) 출력 후 너는 죽지 않고 idle(available) 로 남는다. 이후 Supervisor 가 \`REARM <next_since>\` 를 **SendMessage 로 너에게 보내면**(다음 phase 감시 재개 지시), 그 메시지를 KICKOFF 와 동일하게 처리한다 — 즉 Bash tool(timeout:590000) 로 \`bash ~/.claude/skills/harness-wf/lib/h2-watchdog.sh watch $H2 60 540 360 <next_since>\` 를 다시 실제 invoke 해 watch 루프에 재진입한다. (REARM 수신은 위 "SendMessage 일절 금지" 의 예외 — 너는 받기만 하고 보내지 않는다. shutdown_request 면 종료 절차.) 재무장하지 않으면 다음 phase 가 무감시로 진행된다.
 Bash 를 건너뛰고 결과만 출력 = 작업 무효.
 (Supervisor 동작: cap = watchdog self-respawn 이라 **Supervisor 미관여** / phase_complete → gate-review·SR·다음 phase / escalate|stuck → 중재·Verifier 재가동 / 워치독 사망 → button dead-man's switch 주입 수신 시 watchdog 1개 재스폰.)
 EOF
@@ -191,8 +192,9 @@ EOF
 
 ⛔ **보고 = execution-log append 가 SSOT (Phase 1 버그 차단: 본문 텍스트 출력만 = 미수신·미기록)**. 리뷰 끝나면 **반드시** 아래 append 후 완료 1줄:
   bash ~/.claude/skills/harness-wf/lib/h2-log.sh append $H2 '{"role":"SR","ev":"sr_review","mode":"C|T1|T2|T3|T4|A|G","lenses":[...],"assumptions":[...],"typeA":"<비전1>","typeB":["<실행1-2>"],"sparks":[...],"ignite":<bool>,"score":{"A1":n,"A2":n,"A3":n,"A4":n},"directive":"<수렴 한 줄>","ts":<ms>}'
-SR 은 spawn-one 으로 그 자리서 Supervisor 가 결과 회수(SendMessage 불요 — append SSOT + 완료 1줄). 불변: Worker/Verifier/Healer 직접통신 금지. 자율순찰 금지.
-완료 1줄: {"role":"SR","mode":"...","type":"A|B|null","ignite":<bool>,"proposal":"..."}
+SR 결과 회수 = execution-log ev:sr_review append 가 SSOT(Supervisor 가 그 자리서 Read). 불변: Worker/Verifier/Healer 직접통신 금지. 자율순찰 금지.
+⛔ **PERSIST (SR churn 차단 — 2026-06-28 fix, skill.md §진입 6 "역할 재호출=SendMessage·죽이지 않음" 정합)**: 완료 1줄 출력 후 너는 **죽지 않고 idle(available) 로 남는다**. 매 phase 마다 새 spawn-one 으로 너를 재생성(=직전 SR kill)하지 않는다 — Supervisor 가 다음 트리거(C/T1~T4/A/G 중 하나)를 **SendMessage 로 MODE 를 동봉해 너에게 보내면**, 그 MODE 로 위 [MODE 분기] 를 다시 수행하고 ev:sr_review append + 완료 1줄 후 또 idle 한다. 이 사이클을 shutdown_request 수신 전까지 반복한다(MODE 수신은 "직접통신 금지" 예외 — 너는 Supervisor 의 트리거를 받기만 한다). 직전 phase 리뷰 맥락이 누적 보존되는 게 fresh-spawn 보다 낫다.
+완료 1줄(매 MODE 완료 시 / shutdown 시): {"role":"SR","mode":"...","type":"A|B|null","ignite":<bool>,"proposal":"..."}
 EOF
   } > "$DISP/SR.prompt"
 
