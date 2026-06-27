@@ -11,6 +11,16 @@
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$DIR/mux-lib.sh"
 
+# 핸드오프 게이트 (handoff-guide.md 연동, 2차 확인): handoff-done sentinel 도 우회도 없으면 거부.
+# PreCompact 훅(ctx-precompact-pre.js)이 1차 hard block 이고, 여기는 세션 자율 경로 친절 안내.
+CWD="$(pwd)"
+SENT="$CWD/.ctx-precompact/handoff-done"
+SKIP="$CWD/.ctx-precompact/handoff-skip"
+if [ ! -f "$SENT" ] && [ ! -f "$SKIP" ]; then
+  echo "[self-compact] ⛔ 핸드오프 미작성 — handoff-guide.md 로 작성 후 'echo <md경로> > $SENT' 기록하고 재호출. 긴급 우회: touch $SKIP" >&2
+  exit 1
+fi
+
 rm -f "$HOME/.claude/.ctx-longmode" 2>/dev/null || true   # 압축 = long-mode 자동 원복
 
 if mux_send "/compact"; then

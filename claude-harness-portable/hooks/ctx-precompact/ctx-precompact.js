@@ -159,12 +159,12 @@ function buildWarnBody({ kTok, pct, criticalK, cap }) {
 function buildCriticalBody({ kTok, pct, cwd }) {
   const cwdFwd = cwd.replace(/\\/g, '/');
   return [
-    `🚨 [최우선 — 컨텍스트 CRITICAL] ${kTok}k tok (${pct}%). 아래 2단계를 이번 turn 에 완료한다 (둘 다 필수, 건너뛰기 금지):`,
-    `1) **저장**: 진행 중 작업의 (a)마지막 결정 (b)다음 의도 (c)열어본 핵심 파일·재개 지점 을 \`${cwdFwd}/progress.md\` 하단 또는 메모에 구체적으로 1회 기록. "진행 중" 류 추상 금지.`,
-    `2) **세션 스스로 /compact 입력**: 저장 직후 다음 Bash 1회만 호출 → 세션이 자기 터미널에 /compact 를 입력한다(멀티플렉서 자동 감지): \`bash ~/.claude/hooks/ctx-precompact/self-compact.sh\``,
-    `   ↳ 멀티플렉서(tmux/psmux)가 없으면 self-compact.sh 가 안내만 하고, 그 경우 직접 \`/compact\` 를 입력하거나 autoCompactEnabled 네이티브 압축에 맡긴다.`,
-    `⛔ subagent 작업 중(결과 미반환)이면 /compact 가 결과를 고아화한다 — subagent 완료·결과 수집 후에만 압축. 또는 opus 면 \`ctx-longmode.sh on\`(750k) 으로 압축 자체를 회피.`,
-    `압축 후엔 저장한 내용으로 작업을 그대로 이어간다.`,
+    `🚨 [최우선 — 컨텍스트 CRITICAL] ${kTok}k tok (${pct}%). 아래 3단계를 이번 turn 에 완료한다 (건너뛰기 금지). 핸드오프 없이는 /compact 가 PreCompact 게이트에서 차단된다:`,
+    `1) **핸드오프 작성**: 가이드(\`~/.claude/hooks/ctx-precompact/handoff-guide.md\`) 6섹션 + 작업단위 5필드로 \`~/.claude/memory/handoff-{topic}-{YYYYMMDDHHMM}.md\` 작성. "다음 세션이 이 파일만으로 동등 재개 가능한가" 자가체크. "진행 중" 류 추상 금지.`,
+    `2) **sentinel 기록**: \`mkdir -p ${cwdFwd}/.ctx-precompact && echo "<핸드오프 md 절대경로>" > ${cwdFwd}/.ctx-precompact/handoff-done\``,
+    `3) **세션 스스로 /compact**: \`bash ~/.claude/hooks/ctx-precompact/self-compact.sh\` (멀티플렉서 자동 감지, 없으면 직접 /compact).`,
+    `⛔ subagent 작업 중(결과 미반환)이면 /compact 가 결과를 고아화 — 완료 후 압축. opus 면 \`ctx-longmode.sh on\`(750k) 으로 압축 회피. 핸드오프 정말 못 쓰면 긴급 우회: \`touch ${cwdFwd}/.ctx-precompact/handoff-skip\` (인계 포기).`,
+    `압축 후엔 핸드오프 md 로 작업을 그대로 이어간다.`,
   ].join('\n');
 }
 

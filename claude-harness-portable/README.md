@@ -20,7 +20,8 @@ claude-harness-portable/
     skill.md                 # Pre-flight + Phase 0~4 + 조사 3-소스(웹/finance db/메모)
   hooks/ctx-precompact/      # 사전압축 훅 + 자가 재개
     ctx-precompact.js        # PostToolUse — cap 임계 경고 + 자가 압축 지시
-    ctx-precompact-pre.js    # PreCompact — 압축 후 stale-token cooldown marker
+    ctx-precompact-pre.js    # PreCompact — 핸드오프 게이트(미작성 시 압축 차단) + stale-token cooldown
+    handoff-guide.md         # 핸드오프 작성 기준(6섹션/5필드) — 압축 전 무조건 작성 강제
     ctx-longmode.sh          # cap 500k ↔ 750k 토글 (1회)
     mux-lib.sh               # 멀티플렉서(tmux/psmux) transport 추상화 (공용)
     self-compact.sh          # 세션이 스스로 /compact 입력
@@ -88,6 +89,16 @@ bash setup.sh
 ### subagent 안전
 PostToolUse 훅은 stdin 의 `agent_id`/`agent_type` 가 있으면(=subagent 발) 주입을 skip 한다.
 subagent 진행 중 /compact 는 결과를 고아화하므로 메인 세션에만 적용된다.
+
+### 핸드오프 강제 게이트 (압축 전 무조건 작성)
+critical 도달 시 hook 이 "핸드오프 작성 → sentinel → self-compact" 를 지시하고, PreCompact 훅이
+핸드오프 없는 /compact 를 `exit(2)` 로 **차단**한다 (수동 /compact + native auto-compact 모두). 이로써
+압축이 일어나기 전에 핸드오프가 반드시 존재하게 된다.
+- 작성 기준 (6섹션 + 작업단위 5필드 + Write 전 자가체크 3) = `handoff-guide.md`. 핵심 판정 = "다음
+  세션이 대화 로그 없이 이 파일 하나만으로 동등 재개 가능한가".
+- 통과 조건: `<cwd>/.ctx-precompact/handoff-done` (내용 = 핸드오프 md 절대경로) 가 가리키는 md 가 실제
+  존재 + 최소 400B. 통과 시 sentinel 소비 → 다음 압축 때 재작성 강제.
+- 긴급 우회: `touch <cwd>/.ctx-precompact/handoff-skip` (1회용, 인계 포기).
 
 ---
 
