@@ -1,0 +1,53 @@
+# harness.md — 실행 계획 (harness-wf 의 harness.md 등가, Supervisor 가 ② 단계 작성)
+
+> 생성: h2-bootstrap.sh @ {{TS}} | 런타임 SSOT: {{H2DIR}} | 규칙: ~/.claude/skills/harness-wf/protocol.md
+
+## Pipeline Goal
+{{GOAL}}
+
+## Sacred Zone (불가침 — SR 도 도전 금지)
+{{SACRED}}
+
+## Open Zone (도전 허용 — SR 창의 대상)
+{{OPEN}}
+
+## Phase → Final Objective → Sub-obj (4원칙: 관찰가능성·원자성·커버리지·독립성)
+{{PHASES_TABLE}}
+
+## 역할 배정 (agentId 영속 = resume 관통)
+{{ROLE_ASSIGN}}
+
+## Sufficiency Check (Supervisor 만 기입 — Phase 완료 시 충분성 2방향 5기준)
+| Phase | ↑세부→Phase Final 달성? | ↓Phase Final→Pipeline Goal? | 5기준(사용자가치/커버리지갭/통합정합/부작용/범위드리프트) | 판정 |
+|---|---|---|---|---|
+| (Phase 완료마다 Supervisor 기입) | | | | |
+
+## 🔄 Reflection & Closing (⑧ 세션 정리 — RC-1~RC-6 순서, RC-1~5.5 전 체크 전 종료 금지)
+- [ ] **RC-1** 각 역할 agent 에 reflection 질문 전송 ([REFLECT] Q1 어려웠던점 / Q2 발견제약 / Q3 개선아이디어 → execution-log 기록 지시)
+- [ ] **RC-2** 수집 (완료푸시 회수)
+- [ ] **RC-3** Supervisor 자체 reflection — 4필드(대상파일 / 현재 L{줄} / 변경제안 / 근거 / 영향범위), 모호서술 금지
+- [ ] **RC-4** promotion-log 기록 (ERROR/K/P 분류, 없으면 "검토 완료 — 기록 대상 없음" 명시)
+- [ ] **RC-5** 사용자 보고 + improvement-registry.md 5필드 행 추가
+- [ ] **RC-5.5** progress.md 체크박스 일괄 반영 (존재 시; 완료=[x], 미완=그대로)
+- [ ] **RC-6** 정리 — watchdog TaskStop + 역할 agent "summarize and stop" + .harness/.active 제거 (디제스트 절대정리금지 목록 준수)
+
+## 통신 프로토콜 (메인 = relay 아님)
+- content SSOT = `{{H2DIR}}/execution-log.jsonl` (append-only, atomic). 전 역할 여기 기록.
+- Worker↔Verifier·Verifier→Healer·Healer→Verifier = zero-main 공유파일 랑데부(`h2-log.sh wait`).
+- Healer→Supervisor(Design FAIL/의존성) / SR↔Supervisor(T1-T4·Ignite) / retry≥3·DEADLOCK = 메인 결정점(저빈도).
+- 완료푸시 = Supervisor wake(무료·자동). 메인 idle-by-default + code-sanity 6트리거만 개입.
+
+## 파일 SSOT 맵 (각 역할 자기 기록처 인지 — harness-wf 동일)
+| 파일 | 쓰는 역할 | 용도 |
+|---|---|---|
+| `{{H2DIR}}/harness.md` | Supervisor | 본 실행계획(harness.md 등가) + Sufficiency + RC |
+| `{{H2DIR}}/execution-log.jsonl` | 전 역할 | ev SSOT (wf_header/phase_start/done/verdict/fix_pattern/design_decision/handoff_key/watchdog/sr_review/mediation/rule_fix/phase_snapshot) |
+| `{{H2DIR}}/phase-state.json` | Supervisor | 상태머신 S0~S11 atomic |
+| `{{H2DIR}}/agents.json` | Supervisor | 역할→agentId (resume 관통) |
+| `{{H2DIR}}/active-agents.json` | Supervisor | watchdog 입력 |
+| `{{H2DIR}}/verdicts/phase-N.json` | Verifier | 판정 아카이브 |
+| `{{H2DIR}}/improvement-registry.md` | Supervisor | ⑧ RC-5 5필드 행 |
+| `{{H2DIR}}/deferred-ideas.md`·`inspiration-log.md` | SR | Mode A 재검토 대상 |
+
+## 상태머신 / 8단계 / 9-step
+protocol.md §3·§4·§7 준수. ⑦ = Worker_{N+1} ∥ Verifier_N 동시발행 + 공유파일 랑데부 + 워치독(IDLE 전환마다 1회, 미실행 시 ev:watchdog_skip 기록).

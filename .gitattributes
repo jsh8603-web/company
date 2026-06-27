@@ -1,0 +1,6 @@
+# claude-harness-portable: 셸/JS 스크립트는 LF 고정 — Windows 체크아웃에서도 bash 가 \r 없이 동작.
+claude-harness-portable/**/*.sh   text eol=lf
+claude-harness-portable/**/*.js   text eol=lf
+claude-harness-portable/**/*.md   text eol=lf
+claude-harness-portable/**/*.txt  text eol=lf
+claude-harness-portable/**/*.tmpl text eol=lf
