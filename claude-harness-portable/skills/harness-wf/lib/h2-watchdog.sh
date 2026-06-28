@@ -6,7 +6,7 @@
 #   h2-watchdog.sh check <h2dir> <stale_s>            # one-shot: stalled agent JSON 출력 (Haiku 가 호출)
 #   h2-watchdog.sh loop  <h2dir> [stale_s=180] [poll_s=30]   # (보조) bg 루프, STUCK append
 #   h2-watchdog.sh scan  <h2dir> <stale_s> <since_ts>  # one-shot 이벤트 신호: {"status":"alive|phase_complete|escalate|stuck"}. since_ts 이후 새 ev 만 트리거(재스폰 시 과거 재트리거 방지).
-#   h2-watchdog.sh watch <h2dir> [poll=60] [cap=540] [stale=360] [since_ms]  # 블로킹 루프: .self-wake-ts heartbeat + .watchdog-stop sentinel + scan. 이벤트/stop → WATCHDOG_RESULT 후 종료(=task-notification, Supervisor 기상). cap → status:cap+next_since 출력 후 종료(= haiku agent 가 self-respawn: next_since 로 재호출, Supervisor 미경유 = ZERO-MAIN). since_ms(6번째)=self-respawn 시 직전 종료 ts 전진(과거 이벤트 재트리거 방지). 단일 watchdog SSOT.
+#   h2-watchdog.sh watch <h2dir> [poll=60] [cap=540] [stale=360] [since_ms]  # 블로킹 루프: .self-wake-ts heartbeat + .watchdog-stop sentinel + scan. 이벤트/stop → WATCHDOG_RESULT 후 종료(=task-notification, Supervisor 기상). cap → status:cap+next_since 출력 후 종료(= watchdog agent 가 self-respawn: next_since 로 재호출, Supervisor 미경유 = ZERO-MAIN). since_ms(6번째)=self-respawn 시 직전 종료 ts 전진(과거 이벤트 재트리거 방지). 단일 watchdog SSOT.
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/h2-env.sh"
 
