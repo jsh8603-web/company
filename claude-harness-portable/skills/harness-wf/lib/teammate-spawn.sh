@@ -58,7 +58,7 @@ build() {
   "members": [
     {"role":"Worker",   "name":"Worker",   "model":"opus",  "kind":"active",    "prompt":"$DISP/Worker.prompt"},
     {"role":"Verifier", "name":"Verifier", "model":"opus",  "kind":"verifier",  "prompt":"$DISP/Verifier.prompt"},
-    {"role":"watchdog", "name":"watchdog", "model":"haiku", "kind":"liveness",  "prompt":"$DISP/Watchdog.prompt"},
+    {"role":"watchdog", "name":"watchdog", "model":"sonnet", "kind":"liveness",  "prompt":"$DISP/Watchdog.prompt"},
     {"role":"Healer",   "name":"Healer",   "model":"opus",  "kind":"on-demand", "prompt":"$DISP/Healer.prompt", "on_demand":true},
     {"role":"SR",       "name":"SR",       "model":"opus",  "kind":"on-trigger","prompt":"$DISP/SR.prompt", "on_trigger":true}
   ]
@@ -138,10 +138,10 @@ EOF
 EOF
   } > "$DISP/Verifier.prompt"
 
-  # ── Watchdog.prompt (haiku, liveness + phase-boundary 신호 — 단일 blocking 루프) ──
+  # ── Watchdog.prompt (sonnet, liveness + phase-boundary 신호 — 단일 blocking 루프) ──
   { disclaimer; cat <<EOF
 
-=== 역할: watchdog (haiku, liveness + phase-boundary 신호 — ctx/토큰 측정 절대 금지) ===
+=== 역할: watchdog (sonnet, liveness + phase-boundary 신호 — ctx/토큰 측정 절대 금지) ===
 ⛔ ctx/토큰 측정 절대 금지 — in-process teammate ctx 계측 구조적 불가(CTX-INVISIBLE). 너는 liveness + 이벤트 신호만.
 ⛔ **SendMessage 일절 금지** (너는 relay 가 아니다). 임무 = **단일 blocking 루프**로 폴하다가 (a) phase_complete (b) escalate|blocked (c) silent-death (d) stop-sentinel 중 하나 감지 시 **turn 종료** = task-notification 으로 Supervisor 기상. ⭐ (e) safety-cap 은 turn 종료가 아니라 **self-respawn**(아래 KICKOFF) — cap 은 Bash 한도 회피일 뿐 이벤트가 아니므로 Supervisor 를 깨우지 않는다(ZERO-MAIN, category-error fix). within-phase 정상 commit/verdict 흐름엔 안 깨어난다(Worker↔Verifier 자율 pull = Supervisor 미개입).
 ⛔ **단일 인스턴스**: 이 루프가 .self-wake-ts 를 heartbeat 한다(self-respawn=cap 동안에도 계속 갱신). Supervisor 는 .self-wake-ts 신선(<2min)이면 재스폰 skip → 중복 watchdog sprawl 차단(발견3 fix). cap 은 self-respawn(Supervisor 미경유, heartbeat 유지=skip 정상). 반면 **이벤트 종료(phase_complete/escalate/stuck/stopped) 시 watch 가 .self-wake-ts 를 제거**(stale 화)하므로, idle 로 남은 너를 Supervisor 가 dedup 통과로 정확히 재무장(REARM)할 수 있다 — 과거엔 종료 직전 heartbeat 가 신선해 dedup 이 재스폰을 막아 phase 후 watchdog 가 영구 idle 였다(2026-06-28 fix). 워치독이 진짜 죽어(crash) .self-wake-ts 가 stale 하면 **button dead-man's switch** 가 mtime staleness 감지 → Supervisor 를 깨워 1개 재스폰(유일한 외부 생존감시 = 워치독 독립 관찰자).

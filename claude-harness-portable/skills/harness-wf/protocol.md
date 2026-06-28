@@ -31,7 +31,7 @@ status: active
 | ①계획재구성 | 메인 직접 (plan.md Phase 분해) |
 | ②목표계층 | goals.json + Task(blockedBy) — U6 회피 위해 전이는 execution-log 미러 |
 | ③승인 | 사람 (변경 없음) |
-| ④Agent 스폰 (단일 Worker) | 역할별 Agent dispatch → agentId 를 agents.json 영속. role-scoped disclaimer 부착. **dispatch 모델: Worker/Verifier/Healer/SR = `model: opus`(opus 1m, 단일 워커 최고 품질). watchdog = `model: haiku`(liveness 단순 blocking 루프, 토큰 측정 0 → 모델 품질 무관). 메인 Supervisor=Opus 는 idle-by-default** |
+| ④Agent 스폰 (단일 Worker) | 역할별 Agent dispatch → agentId 를 agents.json 영속. role-scoped disclaimer 부착. **dispatch 모델: Worker/Verifier/Healer/SR = `model: opus`(opus 1m, 단일 워커 최고 품질). watchdog = `model: sonnet`(liveness blocking 루프 자체는 LLM 0 이나, shutdown/REARM 핸드셰이크가 SendMessage/Bash tool 의 **실제 invoke** 신뢰성을 요구 → haiku 는 그걸 텍스트로 때워 미종료·phase 후 무감시 유발, 2026-06-28 실측으로 sonnet 승격). 메인 Supervisor=Opus 는 idle-by-default** |
 | ⑤역할주입 | dispatch prompt 에 role 정의 + {{H2DIR}} + JSON 스키마 임베드 (send-keys 제거) |
 | ⑥SR Pre-Review | SR Agent dispatch (MODE=C) → final JSON 회수 |
 | ⑦Phase 루프 | §4 상태머신 |
@@ -79,13 +79,13 @@ content 는 **항상** `execution-log.jsonl`(atomic append, 측정: 동시 subag
 
 ## 6. patrol 2층
 
-### ① Haiku watchdog (≈$0.036/hr, lightweight-wf 등가)
-**bash-only watchdog 폐기 사유 (설계 결함)**: detached bash `while:` 는 execution-log 에 STUCK 을 append 해도 **idle Supervisor 를 깨울 수단이 없음**(완료푸시 없음). 게다가 watchdog 가 필요한 "전부 멈춤" 상황이면 다른 완료푸시도 없어 STUCK 이 영영 미독 = 무용. → Haiku **agent** watchdog 으로 대체.
+### ① Sonnet watchdog (blocking 루프라 LLM 호출 저빈도 — cap 주기 self-respawn turn + 이벤트시만, 비용 영향 경미)
+**bash-only watchdog 폐기 사유 (설계 결함)**: detached bash `while:` 는 execution-log 에 STUCK 을 append 해도 **idle Supervisor 를 깨울 수단이 없음**(완료푸시 없음). 게다가 watchdog 가 필요한 "전부 멈춤" 상황이면 다른 완료푸시도 없어 STUCK 이 영영 미독 = 무용. → **agent** watchdog(sonnet) 으로 대체.
 
-메커니즘 (단일 blocking 루프, 이벤트 시에만 완료): watchdog teammate(haiku) 의 KICKOFF = `bash h2-watchdog.sh watch <h2dir> 60 540 360` **단 한 번**. 그 안에서 단일 blocking 루프가 (LLM 0): 매 60s `_scan_status`(one-shot) + `.self-wake-ts` heartbeat + `.watchdog-stop` 점검 →
+메커니즘 (단일 blocking 루프, 이벤트 시에만 완료): watchdog teammate(sonnet) 의 KICKOFF = `bash h2-watchdog.sh watch <h2dir> 60 540 360` **단 한 번**. 그 안에서 단일 blocking 루프가 (LLM 0): 매 60s `_scan_status`(one-shot) + `.self-wake-ts` heartbeat + `.watchdog-stop` 점검 →
 - **alive** (within-phase 정상 commit/verdict 흐름) → 계속 루프(상주, Supervisor 안 깨움). ⛔ per-SO·FAIL 은 Worker↔Verifier 자율 pull 이라 watchdog 이 깨우지 **않는다**(Supervisor 중계 0 = ZERO-MAIN).
 - **phase_complete / escalate|blocked / stuck(silent-death)** 감지 → `WATCHDOG_RESULT {status,...}` 출력 + **turn 종료** → task-notification 으로 Supervisor 기상 (SendMessage 아님). 이 3종만 Supervisor 개입 가치 있는 이벤트.
-- **cap(540s, 10분 Bash 한도 회피)** 도달 → `status:"cap"`+next_since 출력 → ⭐ haiku watchdog 이 **self-respawn**(next_since 로 watch 재호출, Supervisor 미경유 = ZERO-MAIN). cap 은 transport 한도 회피일 뿐 이벤트 아님(category-error fix). auto-compaction 이 watchdog turn 누적 흡수. 워치독이 진짜 죽으면(crash/압축실패) heartbeat 멈춤 → button dead-man's switch 가 커버.
+- **cap(540s, 10분 Bash 한도 회피)** 도달 → `status:"cap"`+next_since 출력 → ⭐ sonnet watchdog 이 **self-respawn**(next_since 로 watch 재호출, Supervisor 미경유 = ZERO-MAIN). cap 은 transport 한도 회피일 뿐 이벤트 아님(category-error fix). auto-compaction 이 watchdog turn 누적 흡수. 워치독이 진짜 죽으면(crash/압축실패) heartbeat 멈춤 → button dead-man's switch 가 커버.
 
 Supervisor 동작 (watchdog 완료 task-notification 또는 button dead-man's switch 주입 수신 시): `h2-log.sh last <h2dir>` 1회 Read → status 분기 — `phase_complete` → §12.5 Phase 완료 체크리스트 / `escalate|stuck` → 해당 SO diff read·중재 또는 Verifier 재가동(teammate-spawn.sh spawn-one) / `stopped`(비-S10) → watchdog 재무장 [cap 은 self-respawn = Supervisor 미관여]. ⛔ **watchdog 재무장 = REARM SendMessage (재-spawn 아님, 2026-06-28 fix)**: phase_complete/escalate/stuck/stopped 로 watchdog 이 turn 종료하면 죽지 않고 **idle(available)** 로 남고 watch 가 `.self-wake-ts` 를 제거(stale)한다 → §12.5/escalate 처리 후 그 idle watchdog teammate 에게 `SendMessage(to=agents.json[watchdog], message="REARM <next_since=현재 ms>")` 1회 → watchdog 가 watch 루프 재진입. **dedup**: REARM 직전 `.self-wake-ts` 가 신선(<120s)이면 = 다른 watchdog 가 이미 alive → **skip**(중복 sprawl 차단, 발견3 fix). 단 이벤트 종료 시 watch 가 .self-wake-ts 를 지우므로 정상 경로는 stale=통과. **진짜 사망(crash → button 주입)** 만 새 Agent spawn(spawn PLAN watchdog 멤버). 종료(S10) 시 `touch .watchdog-stop` → watchdog 다음 폴(≤60s) 안에 stopped 종료(REARM 금지) + **dead-man's switch 해제** `bash ~/.claude/skills/harness-wf/lib/h2-registry.sh unregister "$(cd .harness && pwd)"` (button 감시 등록부에서 제거).
 
@@ -169,7 +169,7 @@ harness 런타임은 레거시 비서 호출·의존 일절 없음. (a)죽은세
 
 ## 11. 종료 ⑧
 
-전 phase PASS → S10 → 각 역할에 "summarize and stop" → improvement-registry.md 행 추가(5필드) → artifacts 아카이브 → active-agents 비우기 → ⛔ **watchdog 종료**: 먼저 `touch <h2dir>/.watchdog-stop` (h2-watchdog.sh watch 루프가 다음 폴 ≤60s 안에 `status:"stopped"` 종료) → 그 후 각 역할 shutdown_request(disclaimer 의 shutdown 지시대로 SendMessage 응답하게) → **전 팀원 `teammate_terminated`/`shutdown_approved` 수신 후에만 TeamDelete**(idle teammate 는 shutdown 메시지 받아야 처리 — 미선행 시 active 잔존 cleanup 실패 실측). scope-disclaimer 가 자율 ckpt/compact 차단(측정 3회 연속 입증). ⛔ **S10 진입 전 O12 불변식 필수 확인**: 각 SO 최신 ev = `Verifier verdict=PASSED` 이고 그 `git_head` 가 SO 최종 commit sha 와 일치(동일 Sub Healer ev:fix/Worker done ts 초과)인가? 아니면(Healer fix/Worker done 이 마지막) S10 금지 — `teammate-spawn.sh spawn-one` 으로 Verifier 재가동해 재검증 강제 후 진입. 미통과 = 종료 누락 아니라 **미완료 상태 종료**(verdict-integrity 위반).
+전 phase PASS → S10 → 각 역할에 "summarize and stop" → improvement-registry.md 행 추가(5필드) → artifacts 아카이브 → active-agents 비우기 → ⛔ **watchdog 종료 (순서 필수)**: 먼저 `touch <h2dir>/.watchdog-stop` — watchdog 는 blocking watch 루프 중엔 shutdown_request SendMessage 를 **수신조차 못 한다**(2026-06-28 실측). 따라서 .watchdog-stop 이 **반드시 선행**해 watch 를 다음 폴 ≤60s 안에 `status:"stopped"` 로 끝내 idle 로 만든 **뒤에만** shutdown_request 가 처리된다. 그 후 각 역할 shutdown_request(disclaimer 의 shutdown 지시대로 SendMessage 응답하게) → **전 팀원 `teammate_terminated`/`shutdown_approved` 수신 후에만 TeamDelete**(idle teammate 는 shutdown 메시지 받아야 처리 — 미선행 시 active 잔존 cleanup 실패 실측). scope-disclaimer 가 자율 ckpt/compact 차단(측정 3회 연속 입증). ⛔ **S10 진입 전 O12 불변식 필수 확인**: 각 SO 최신 ev = `Verifier verdict=PASSED` 이고 그 `git_head` 가 SO 최종 commit sha 와 일치(동일 Sub Healer ev:fix/Worker done ts 초과)인가? 아니면(Healer fix/Worker done 이 마지막) S10 금지 — `teammate-spawn.sh spawn-one` 으로 Verifier 재가동해 재검증 강제 후 진입. 미통과 = 종료 누락 아니라 **미완료 상태 종료**(verdict-integrity 위반).
 
 ## 12. Supervisor 충실 프로토콜 (harness-wf supervisor-* 무누락 포팅)
 

@@ -29,7 +29,7 @@ status: active
 2. **scaffold**: `mkdir -p .harness/{verdicts,artifacts}`; `h2-state.sh transition .harness S0 IDLE 0`; **dead-man's switch 등록** `bash lib/h2-registry.sh register "$(cd .harness && pwd)"` (button 이 워치독 `.self-wake-ts` 생존 감시 → 사망 시 Supervisor 재스폰).
 3. **dispatch (④⑤)**: 역할별 `h2-dispatch.sh` 로 prompt 조립(disclaimer-strict = Worker/Verifier/Healer, disclaimer-sr = SR) → Agent tool 호출(run_in_background) → `h2-agents.sh register` 로 agentId 영속.
    - ⚠️ **TeamCreate 교착 해소** (다음 phase 팀 생성 시 자주 발생): 새 팀 TeamCreate 가 `Already leading team <X>` 로 막히면 = 이전 phase 의 **완료모드 teammate(exit_code:0 후)** 가 shutdown_request 에 SendMessage 를 invoke 하지 않아 TeamDelete `active member` 가 실패하는 데드락. **해소**(spawn PLAN STEP-0 와 동일): (a) `bash lib/teammate-spawn.sh unblock-leader <X>` → 팀 메타 mv 백업(rm 은 home-guard 차단) (b) **TeamDelete tool 1회** → 파일 없어 active 체크 우회, in-memory leader 정리 (c) TeamCreate <new> 재시도 → spawn. 실증=2026-05-28 Inv Phase0.
-4. **watchdog (patrol ①)**: ③ dispatch 배치에 haiku watchdog 포함(teammate-spawn.sh) — KICKOFF 에서 `h2-watchdog.sh watch` **self-respawn 루프** 1회 기동(cap→자가 재호출, Supervisor 미경유 = ZERO-MAIN). 별도 `run_in_background` loop 기동 아님(v1 폐기). 워치독 생존감시 = button dead-man's switch(`.self-wake-ts` mtime staleness).
+4. **watchdog (patrol ①)**: ③ dispatch 배치에 sonnet watchdog 포함(teammate-spawn.sh) — KICKOFF 에서 `h2-watchdog.sh watch` **self-respawn 루프** 1회 기동(cap→자가 재호출, Supervisor 미경유 = ZERO-MAIN). 별도 `run_in_background` loop 기동 아님(v1 폐기). 워치독 생존감시 = button dead-man's switch(`.self-wake-ts` mtime staleness).
 5. **⑥ SR Pre-Review** (MODE=C) → **⑦ Phase 루프**(상태머신 + §6 code-sanity 6트리거 + §7 FAIL 9-step) → **⑧ 정리**.
 6. **resume 관통**: 역할 재호출 = `SendMessage(to=agents.json[role])` (죽이지 않음). 압축 임계 시에만 🔑 키블록 인계.
 
