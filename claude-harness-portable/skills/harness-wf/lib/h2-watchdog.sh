@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# harness-wf — patrol ① staleness 엔진 (LLM 0). 정식 경로 = Haiku agent 가 `check` one-shot 반복 호출.
-# (bash loop 단독은 idle Supervisor 를 못 깨움 = 설계 결함 → Haiku agent watchdog 으로 wake.
+# harness-wf — patrol ① staleness 엔진 (LLM 0). 정식 경로 = Sonnet agent 가 `check` one-shot 반복 호출.
+# (bash loop 단독은 idle Supervisor 를 못 깨움 = 설계 결함 → Sonnet agent watchdog 으로 wake.
 #  loop 모드는 보조/디버그용만 유지.)
 # usage:
-#   h2-watchdog.sh check <h2dir> <stale_s>            # one-shot: stalled agent JSON 출력 (Haiku 가 호출)
+#   h2-watchdog.sh check <h2dir> <stale_s>            # one-shot: stalled agent JSON 출력 (Sonnet 가 호출)
 #   h2-watchdog.sh loop  <h2dir> [stale_s=180] [poll_s=30]   # (보조) bg 루프, STUCK append
 #   h2-watchdog.sh scan  <h2dir> <stale_s> <since_ts>  # one-shot 이벤트 신호: {"status":"alive|phase_complete|escalate|stuck"}. since_ts 이후 새 ev 만 트리거(재스폰 시 과거 재트리거 방지).
 #   h2-watchdog.sh watch <h2dir> [poll=60] [cap=540] [stale=360] [since_ms]  # 블로킹 루프: .self-wake-ts heartbeat + .watchdog-stop sentinel + scan. 이벤트/stop → WATCHDOG_RESULT 후 종료(=task-notification, Supervisor 기상). cap → status:cap+next_since 출력 후 종료(= watchdog agent 가 self-respawn: next_since 로 재호출, Supervisor 미경유 = ZERO-MAIN). since_ms(6번째)=self-respawn 시 직전 종료 ts 전진(과거 이벤트 재트리거 방지). 단일 watchdog SSOT.
@@ -87,7 +87,7 @@ case "$mode" in
     _scan_status "$st" "$since"
     ;;
   watch)
-    # 단일 watchdog 블로킹 루프 (Haiku 가 KICKOFF 에서 1회 호출). 이벤트/cap/stop 시 종료.
+    # 단일 watchdog 블로킹 루프 (Sonnet 가 KICKOFF 에서 1회 호출). 이벤트/cap/stop 시 종료.
     poll=${3:-60}; cap=${4:-540}; stale=${5:-1200}; since_arg=${6:-}   # stale 1200>cap 540: active Worker 의 long-running SO 구현(첫 commit 전 execution-log·git 둘 다 조용, 측정 698s)을 false-stuck 으로 오판하던 결함 fix(2026-05-30). 진짜 stuck 은 blocked/escalate 즉시감지+cap self-respawn 주기점검+teammate idle_notification 으로 커버. since_arg(6번째)=self-respawn 전진 ts.
     since0=${since_arg:-$(date +%s%3N)}; t0=$(date +%s)
     while :; do
