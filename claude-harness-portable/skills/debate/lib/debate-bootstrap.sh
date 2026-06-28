@@ -48,7 +48,7 @@ node -e '
   const fs=require("fs");const [,out,h,ts,pj]=process.argv;const P=JSON.parse(pj);
   fs.writeFileSync(out,`# debate 실행 계획 (debate.md)
 
-> bootstrap ts=${ts} · dir=${h} · in-process teammate(Supervisor+Challenger+Haiku watchdog / Judge=Step4 on-demand).
+> bootstrap ts=${ts} · dir=${h} · in-process teammate(Supervisor+Challenger+Sonnet watchdog / Judge=Step4 on-demand).
 
 ## Topic
 ${P.topic||"(미지정)"}
@@ -68,7 +68,7 @@ ${P.sacred||"(없음)"}
 ## 역할
 - **Supervisor(메인 Opus)**: ROI·brief·Score·Rebuttal·수렴판정·Judge 스폰·회수. 매 라운드 능동 개입.
 - **Challenger(opus, 상주)**: 도메인 독립이해 → Steelman → Attack. gating ev 마다 Supervisor wake-ping 필수.
-- **watchdog(haiku)**: silent-death backstop(1차 wake 아님).
+- **watchdog(sonnet)**: silent-death backstop(1차 wake 아님).
 - **Judge(opus, Step4 on-demand fresh=Clean Room)**: judge-protocol.md 전문 → verdict → wake-ping.
 `);
 ' "$H/debate.md" "$H" "$TS" "$PARSED"
@@ -131,7 +131,7 @@ node -e '
     },
     members:[
       {role:"Challenger",name:"Challenger",model:"opus", kind:"active",   prompt:h+"/dispatch/Challenger.prompt", eta_s:1800},
-      {role:"watchdog",  name:"watchdog",  model:"haiku",kind:"liveness", prompt:h+"/dispatch/watchdog.prompt",   eta_s:3000, no_active_register:true},
+      {role:"watchdog",  name:"watchdog",  model:"sonnet",kind:"liveness", prompt:h+"/dispatch/watchdog.prompt",   eta_s:3000, no_active_register:true},
       {role:"Judge",     name:"Judge",     model:"opus", kind:"on-demand",prompt:h+"/dispatch/Judge.prompt",      eta_s:1800, on_demand:true}
     ],
     note:"debate = Supervisor 능동진행 + Challenger 상주 + Judge Step4 on-demand(Clean Room) + watchdog backstop. wake = teammate wake-ping SendMessage(주, idle 보장 아님)."
@@ -148,7 +148,7 @@ echo ">>> MAIN 다음 행동 (transport=teammate-in-process):"
 echo "  STEP-1  TeamCreate(team_name=\"debate\", agent_type=\"supervisor\", description=\"debate 토론 team\")  ← 1회"
 echo "  STEP-2  (한 메시지 병렬, prompt=파일 전문 VERBATIM):"
 echo "     (a) Agent(team_name=\"debate\", name=\"Challenger\", model=\"opus\",  subagent_type=general-purpose, prompt=cat $H/dispatch/Challenger.prompt)"
-echo "     (b) Agent(team_name=\"debate\", name=\"watchdog\",   model=\"haiku\", subagent_type=general-purpose, prompt=cat $H/dispatch/watchdog.prompt)"
+echo "     (b) Agent(team_name=\"debate\", name=\"watchdog\",   model=\"sonnet\", subagent_type=general-purpose, prompt=cat $H/dispatch/watchdog.prompt)"
 echo "  ⛔ run_in_background 절대 금지, name/team_name 필수."
 echo "  STEP-3  Challenger agentId → h2-agents.sh register $H <agentId> Challenger 1800 (watchdog 미등록)."
 echo "  STEP-4  수렴/4R 도달 시 Judge on-demand: Agent(team_name=\"debate\", name=\"Judge\", model=\"opus\", prompt=cat $H/dispatch/Judge.prompt) — 기존 team join."

@@ -91,7 +91,7 @@ Supervisor 동작 (watchdog 완료 task-notification 또는 button dead-man's sw
 
 **heartbeat-return 폐기**: 주기 alive 리턴 = 재스폰 churn + Supervisor 컨텍스트 드리프트 원인. 근거: SR/phase 주기 트리거는 전부 역할 완료푸시에 올라탐(Pre=⑥명시 / T3=Verifier FAIL push / 주기창의=phase경계 PASS push / Post=전PASS push) → 독립 타이머 불필요, SR 누락 0. "완료푸시 전무 장기정지"만 유일 사각 = watchdog stall-감지가 커버.
 
-부수효과: (1) idle Supervisor 깨우기 = stall 시 완료푸시로 성립(bash 결함 수정) (2) 정상시 Supervisor 주기 wake 0 = 컨텍스트 드리프트 없음 (3) 감시비용 lightweight-wf 등가(비교 #4 해소). `h2-watchdog.sh`: `check`=one-shot(Haiku 호출), `loop`=보조/디버그.
+부수효과: (1) idle Supervisor 깨우기 = stall 시 완료푸시로 성립(bash 결함 수정) (2) 정상시 Supervisor 주기 wake 0 = 컨텍스트 드리프트 없음 (3) 감시비용 lightweight-wf 등가(비교 #4 해소). `h2-watchdog.sh`: `check`=one-shot(watchdog 호출), `loop`=보조/디버그.
 
 ### ② code-sanity (메인, 토큰 ∝ 위험이벤트)
 정상경로(PASS·저위험·retry 0) = **메인 코드 안 읽음**(독립 Verifier 신뢰, 매 Sub-obj 재독 = 토큰낭비 + 컨텍스트분리 파괴). 메인 read 6 트리거:

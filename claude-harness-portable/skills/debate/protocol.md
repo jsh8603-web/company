@@ -58,7 +58,7 @@ TeamCreate(team_name="debate", agent_type="supervisor", description="debate <top
 
 # STEP-2 (한 메시지 병렬, prompt = 각 파일 전문 VERBATIM)
 Agent(team_name="debate", name="Challenger", model="opus",  subagent_type="general-purpose", prompt=<.debate/dispatch/Challenger.prompt 전문>)
-Agent(team_name="debate", name="watchdog",   model="haiku", subagent_type="general-purpose", prompt=<.debate/dispatch/watchdog.prompt 전문>)
+Agent(team_name="debate", name="watchdog",   model="sonnet", subagent_type="general-purpose", prompt=<.debate/dispatch/watchdog.prompt 전문>)
 # ⛔ run_in_background 인자 자체를 넣지 않는다 (구 teamless 폐기 경로)
 
 # STEP-3 Challenger agentId 등록 (watchdog = silent-death backstop, active-agents 미등록 — monitor=monitee 아님)
@@ -123,7 +123,7 @@ Agent(team_name="debate", name="Judge", model="opus", subagent_type="general-pur
 1. **(층1) Challenger 의무 wake-ping**: gating ev(`domain_ack` / `steelman_done` / `attack_done` / `relay`) append **직후** `SendMessage(to="Supervisor", message="ev:<종류> round=<n> — 확인 요망")` 실제 invoke. 이게 Supervisor 가 Score/Rebuttal/다음라운드 진행하는 주(主) 확정 경로.
 2. **(층1') Judge 의무 wake-ping (최종)**: Judge 는 `ev:verdict_done` append **직후** **반드시** `SendMessage(to="Supervisor", message="ev:verdict_done — verdict 완료, 회수 요망")` 실제 invoke. Judge = 토론의 **구조적 마지막 발화자**(harness O12 Verifier 동형) → 이 wake-ping 미발신 = Supervisor 영영 안 깨어남 = §6 회수 누락 = "끝났는데 알림 못 받음" 그 자체.
 3. **(층2) disclaimer/role 강제**: role-challenger-debate / role-judge-debate / disclaimer-strict-debate 에 위 wake-ping 의무 명문(누락 시 작업 무효).
-4. **(층3) watchdog backstop 복원**: bootstrap 이 Haiku watchdog teammate 1개 동반 dispatch(harness haiku-watchdog.txt 재사용). 역할 = wake-ping 도 못 남기고 죽은 *진짜 silent-death* 만 staleness 감지→Supervisor 깨움. 1차 wake 아님(보조). (이전 초안의 "watchdog 없음" = 결함, 사용자 적발 → 복원.)
+4. **(층3) watchdog backstop 복원**: bootstrap 이 Sonnet watchdog teammate 1개 동반 dispatch(harness haiku-watchdog.txt 재사용). 역할 = wake-ping 도 못 남기고 죽은 *진짜 silent-death* 만 staleness 감지→Supervisor 깨움. 1차 wake 아님(보조). (이전 초안의 "watchdog 없음" = 결함, 사용자 적발 → 복원.)
 5. **(공통) Supervisor 행동**: wake-ping(주) | idle_notification(best-effort) | watchdog stuck 수신 = **무조건 `bash ~/.claude/skills/harness-wf/lib/h2-log.sh last .debate` 1회 Read** → ev 분류 → §3 표·§5·§6. idle 1건=Read 1회(주기폴링 금지). 일반 Team idle-무시 가이드 OVERRIDE.
 
 ## 8. ev 스키마

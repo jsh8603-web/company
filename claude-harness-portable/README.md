@@ -51,7 +51,7 @@ bash setup.sh
   도달하는 일 자체가 드물고, 압축은 native auto-compact 가, 프로세스 kill 복구는 handoff-key +
   execution-log backstop 이 담당한다.
 - **전 작업 agent = opus 1m** — Worker / Verifier / Healer / SR 모두 `model: opus`.
-  watchdog 만 `haiku`(토큰 측정 0 의 liveness 단순 루프라 모델 품질 무관 → 비용 절감).
+  watchdog 만 `sonnet`(liveness 루프 자체는 LLM 0 이나 shutdown/REARM 핸드셰이크가 tool 실제 invoke 신뢰성을 요구 → haiku 는 텍스트로 때워 미종료, 2026-06-28 실측 sonnet 승격).
 
 **사용**: Claude Code 세션에서 `하네스wf` 또는 `harness` 트리거 → 메인이 `protocol.md` 를 읽고
 `.harness/` scaffold → 역할 dispatch → 상태머신 루프. 상세는 `skills/harness-wf/protocol.md`.
@@ -135,11 +135,11 @@ bash ~/.claude/hooks/ctx-precompact/self-wake.sh status
 ## 4. debate — in-process teammate 토론
 
 멀티라운드 토론(Steelman+Attack 강제, Constitutional 평가 그리드, Clean Room Judge, 수렴 자동 감지).
-Challenger/Judge = **opus**, watchdog = haiku. transport 는 harness-wf 와 **공유**(`harness-wf/lib` 재사용).
+Challenger/Judge = **opus**, watchdog = sonnet. transport 는 harness-wf 와 **공유**(`harness-wf/lib` 재사용).
 
 **트리거**: `debate` / `토론` / `반론` → 메인 Supervisor 가 `protocol.md` 를 읽고
 `lib/debate-bootstrap.sh .debate <context_spec_file>` 로 scaffold → `TeamCreate(team_name="debate")` →
-`Agent(Challenger, model=opus)` + `Agent(watchdog, model=haiku)` → 수렴 시 `Agent(Judge, model=opus)` on-demand.
+`Agent(Challenger, model=opus)` + `Agent(watchdog, model=sonnet)` → 수렴 시 `Agent(Judge, model=opus)` on-demand.
 
 - **psmux 의존 아님**: teammate = Agent tool + SendMessage(in-process). harness 와 동일하게 메인 세션만
   psmux 위에서 돈다.

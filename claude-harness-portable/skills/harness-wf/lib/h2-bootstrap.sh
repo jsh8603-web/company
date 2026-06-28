@@ -44,7 +44,7 @@ PARSED=$(node -e '
     else if(m=ln.match(/^\s*SUBOBJ\s+(\S+):\s*(.*)/i)){const parts=m[2].split(/\|\s*verify:\s*/i);cur&&cur.subs.push({id:m[1],desc:parts[0].trim(),verify:(parts[1]||"관찰가능 기준").trim()});}
   }
   let tbl="| Phase | Final Objective | Sub-obj | 설명 | 검증(객관) | 담당 |\n|---|---|---|---|---|---|\n";
-  let assign="- **Worker(active)**: Sub-obj 순차 구현 (turn 카운터 self-relay → Standby 인계, handoff-key 관통)\n- **Standby1~5**: dormant pool, SendMessage(name) 로 active 승계\n- **Verifier**: 각 Sub-obj 독립검증 (zero-main step-gate 랑데부, verdict idempotent)\n- **watchdog(haiku)**: liveness probe only (ctx 측정 불가 = CTX-INVISIBLE 실증)\n- **Healer**: Verifier FAIL 시 (on-demand, 9-step)\n- **SR**: Pre-Review(C) / T1-T4 / Post-Review(A) (on-trigger)\n";
+  let assign="- **Worker(active)**: Sub-obj 순차 구현 (turn 카운터 self-relay → Standby 인계, handoff-key 관통)\n- **Standby1~5**: dormant pool, SendMessage(name) 로 active 승계\n- **Verifier**: 각 Sub-obj 독립검증 (zero-main step-gate 랑데부, verdict idempotent)\n- **watchdog(sonnet)**: liveness probe only (ctx 측정 불가 = CTX-INVISIBLE 실증)\n- **Healer**: Verifier FAIL 시 (on-demand, 9-step)\n- **SR**: Pre-Review(C) / T1-T4 / Post-Review(A) (on-trigger)\n";
   for(const p of phases) for(const s of p.subs)
     tbl+=`| ${p.n} | ${p.fo} | ${s.id} | ${s.desc} | ${s.verify} | Worker→Verifier |\n`;
   process.stdout.write(JSON.stringify({goal,sacred,open,tbl,assign,nsub:phases.reduce((a,p)=>a+p.subs.length,0)}));
@@ -82,6 +82,6 @@ echo ">>> MAIN(Supervisor) 다음 행동:"
 echo "  (1) manifest.json members[] 읽기"
 echo "  (2) TeamCreate(team_name) — 1회"
 echo "  (3) 각 member: Agent(team_name, name=<name>, model=<model>, prompt=\"\$(cat <member.prompt>)\")  ⛔ 전문 VERBATIM 주입. 'Read 해라' 포인터 금지(disclaimer 선행의존 갭 — 역할주입은 dispatch prompt 자체완결)."
-echo "      = active Worker + Standby1~5 + Verifier + haiku watchdog 한 배치. Healer=on_demand(Verifier FAIL시) / SR=on_trigger."
+echo "      = active Worker + Standby1~5 + Verifier + sonnet watchdog 한 배치. Healer=on_demand(Verifier FAIL시) / SR=on_trigger."
 echo "  (4) ⛔ run_in_background 금지(폐기 프리미티브). ⛔ 글로벌 작성 task 생성 금지(teammate auto-claim 오라우팅 — 메인이 글로벌 선완료 후 스폰)."
 echo "  (5) ZERO-MAIN: 스폰 후 Supervisor 본문 0 tool-call. 기상 = R7 3조건(phase_complete / standby pool 고갈 / 복구불능)."
